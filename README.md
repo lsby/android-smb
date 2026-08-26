@@ -29,7 +29,7 @@ IP、端口、用户名和共享名称以应用界面显示为准。第一个 `*
 
 ## 开发构建
 
-当前 APK 内置的 SMB 核心仅包含 ARM64 Android 版本。Rust 源码位于 `native/smb-server`，Android 工程位于 `android`。
+当前 APK 内置的 SMB 核心仅包含 ARM64 Android 版本。Rust 源码位于 `native/smb-server`，Android 工程位于 `android`。项目在 `native/vendor/smb-server` 固定了一份 `smb-server 0.4.0` 本地补丁版本，用于报告真实磁盘容量并处理并发 SMB 请求；更新上游依赖时需要重新核对这些补丁。
 
 ```powershell
 pnpm install
