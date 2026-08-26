@@ -154,6 +154,13 @@ abstract class 输入框基类 extends 表单组件基类<输入框事件, 监�
       this.输入框元素.placeholder = 占位符
     }
   }
+
+  public 设置类型(类型: string): void {
+    this.配置.类型 = 类型
+    if (this.输入框元素 !== undefined) {
+      this.输入框元素.type = 类型
+    }
+  }
 }
 
 export class 普通输入框 extends 输入框基类 {

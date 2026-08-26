@@ -11,7 +11,7 @@
 /out
 /package
 /release
-/android
+/native/smb-server/target
 
 # =========================
 # Parcel
