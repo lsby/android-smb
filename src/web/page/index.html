@@ -1,14 +1,23 @@
 <!doctype html>
-<html>
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Android SMB 把 Android 设备的内部存储和 SD 卡变成局域网 SMB 共享，无需 Root 即可使用，也支持可选 Root 模式。"
+    />
+    <meta name="keywords" content="Android SMB, SMB 共享, Android 文件共享, 局域网传文件, Samba, SMB2, SMB3" />
+    <meta name="theme-color" content="#07111f" />
+    <link rel="icon" href="../../../public/android-smb-logo.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="../global/style/global.css" />
-    <script src="../components/project/index.ts" type="module"></script>
-    <title>Android SMB</title>
+    <script src="../android-smb-landing-entry.ts" type="module"></script>
+    <title>Android SMB - 把手机变成局域网共享盘</title>
   </head>
 
   <body>
-    <lsby-index></lsby-index>
+    <set-theme 从数据库加载="false"></set-theme>
+    <lsby-set-html-full></lsby-set-html-full>
+    <android-smb-landing></android-smb-landing>
   </body>
 </html>

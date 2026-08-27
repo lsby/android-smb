@@ -346,13 +346,13 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       this.PC命令元素.textContent = this.当前连接共享名列表
         .map(
           (共享名: string): string =>
-            `net use * \\\\${状态.ipAddress}\\${共享名}${端口参数} /user:${this.用户名输入.获得值()} *`,
+            `net use * \\\\${状态.ipAddress}\\${共享名}${端口参数} /user:${this.用户名输入.获得值()} * /persistent:yes`,
         )
         .join('\n')
       this.PC说明元素.textContent =
         状态.port === 445
-          ? '在 Windows 中打开 PowerShell 或 Windows Terminal，复制并逐行运行下面的命令。第一个 * 会自动选择空闲盘符，最后一个 * 会提示输入密码。'
-          : '在 Windows 11 24H2 或更新版本中打开 PowerShell 或 Windows Terminal，复制并逐行运行下面的命令。第一个 * 会自动选择空闲盘符，最后一个 * 会提示输入密码。'
+          ? '推荐先给手机配置固定 IP，使手机始终使用同一个局域网地址。首次在 Windows 中逐行运行下面的命令，持久映射会保留盘符；以后只需在手机上启动服务，就能继续访问。第一个 * 会自动选择空闲盘符，用户名后面的 * 会提示输入密码。'
+          : '推荐先给手机配置固定 IP，使手机始终使用同一个局域网地址。首次在 Windows 11 24H2 或更新版本中逐行运行下面的命令，持久映射会保留盘符；以后只需在手机上启动服务，就能继续访问。第一个 * 会自动选择空闲盘符，用户名后面的 * 会提示输入密码。'
       this.PC连接区域.style.display = 'flex'
       this.提示元素.textContent = ''
     } else if (状态.allFilesAccess === false) {

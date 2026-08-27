@@ -1,0 +1,7 @@
+{
+  "region": "oss-cn-beijing",
+  "accessKeyId": "请填写 AccessKey ID",
+  "accessKeySecret": "请填写 AccessKey Secret",
+  "bucket": "请填写 Bucket 名称",
+  "云端目标目录": "/android-smb/"
+}
