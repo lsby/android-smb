@@ -1,0 +1,59 @@
+name: 校验并发布 GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.5.0
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 检查格式
+        run: pnpm exec prettier --check .
+
+      - name: 检查代码
+        run: pnpm exec eslint .
+
+      - name: 检查类型
+        run: pnpm run _check:type
+
+      - name: 构建 GitHub Pages
+        run: pnpm run public:oss:aliyun -- --build-only=${{ github.event.repository.name }}
+
+      - name: 发布到 gh-pages 分支
+        if: github.event_name != 'pull_request'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist/src/web
+          branch: gh-pages

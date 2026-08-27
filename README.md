@@ -194,6 +194,24 @@ pnpm run run:pure-frontend:dev
 
 自动化环境可追加 `--yes` 跳过确认。为避免误删整个 Bucket，脚本禁止把 Bucket 根目录作为同步目标；请始终给项目配置独立子目录。
 
+## GitHub Actions 自动发布
+
+仓库包含两条自动发布工作流：
+
+- `release-android.yml`：推送 `v*` 标签或手动触发时，构建、签名并发布 ARM64 Release APK 到 GitHub Releases。
+- `deploy-pages.yml`：提交到 `master`、推送 `v*` 标签或手动触发时，将落地页发布到 `gh-pages` 分支；Pull Request 只执行检查和构建。
+
+APK 发布需要在仓库的 GitHub Actions Secrets 中配置以下值：
+
+| Secret                      | 说明                       |
+| --------------------------- | -------------------------- |
+| `ANDROID_KEYSTORE_BASE64`   | JKS/Keystore 文件的 Base64 |
+| `ANDROID_KEYSTORE_PASSWORD` | 密钥库密码                 |
+| `ANDROID_KEY_ALIAS`         | 签名密钥别名               |
+| `ANDROID_KEY_PASSWORD`      | 签名密钥密码               |
+
+签名密钥必须长期保存并保持不变，否则后续 APK 无法覆盖升级已经安装的版本。首次启用 GitHub Pages 时，请在仓库设置中将 Pages 的发布来源选择为 `gh-pages` 分支。
+
 ## 上游项目
 
 SMB 核心基于 [`paltaio/rust-smb-server`](https://github.com/paltaio/rust-smb-server)，仓库内固定的上游源码及其许可证位于 `native/vendor/smb-server`。
