@@ -165,14 +165,19 @@ abstract class 表单组件基类<
   public abstract 设置值(值: 值类型): void
 
   protected 创建提示图标(提示内容: string): HTMLElement {
-    let 提示图标 = 创建元素('span', {
+    let 提示图标 = 创建元素('button', {
+      type: 'button',
+      ariaLabel: '查看提示',
       textContent: '?',
       style: {
         width: '14px',
         height: '14px',
+        flex: '0 0 auto',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '0',
+        border: '0',
         borderRadius: '50%',
         backgroundColor: 'var(--边框颜色)',
         color: 'var(--次要文字颜色)',
@@ -186,6 +191,17 @@ abstract class 表单组件基类<
     }
     提示图标.onmouseleave = (): void => {
       提示管理器.隐藏()
+    }
+    提示图标.onfocus = (): void => {
+      提示管理器.显示({ html: 提示内容 }, 提示图标)
+    }
+    提示图标.onblur = (): void => {
+      提示管理器.隐藏()
+    }
+    提示图标.onclick = (事件: MouseEvent): void => {
+      事件.preventDefault()
+      事件.stopPropagation()
+      提示管理器.显示({ html: 提示内容 }, 提示图标)
     }
     return 提示图标
   }
