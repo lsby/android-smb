@@ -13,6 +13,8 @@ type 发出事件类型 = {}
 type 监听事件类型 = {}
 type 共享选择项 = { 配置: SMB存储根; 选择框: 复选框 }
 
+let 本地存储前缀 = 'android-smb:'
+
 export class SMB服务器组件 extends 组件基类<发出事件类型, 监听事件类型> {
   static {
     this.注册组件('lsby-smb-server', this)
@@ -27,7 +29,13 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   private 共享列表元素 = 创建元素('div')
   private 用户名输入 = new 普通输入框({ 值: 'android-smb', 输入处理函数: (): void => this.保存账号() })
   private 密码输入 = new 密码输入框({ 值: 'android-smb', 输入处理函数: (): void => this.保存账号() })
-  private 端口输入 = new 数字输入框({ 值: '4450', 最小值: '1', 最大值: '65535', 步长: '1' })
+  private 端口输入 = new 数字输入框({
+    值: '4450',
+    最小值: '1',
+    最大值: '65535',
+    步长: '1',
+    输入处理函数: (): void => this.保存端口(),
+  })
   private 显示密码选择 = new 复选框({
     标签: '显示密码',
     值: false,
@@ -37,7 +45,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
     标签: '启用 Root 模式',
     值: false,
     额外提示: '系统根和 1–1023 端口需要 Root。只有启动服务器时才会请求 Root 授权。',
-    变化处理函数: (启用: boolean): void => this.更新默认端口(启用),
+    变化处理函数: (启用: boolean): void => this.保存Root模式(启用),
   })
   private 启动按钮 = new 主要按钮({
     文本: '启动服务器',
@@ -96,7 +104,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       this.创建操作区域(),
     )
     this.shadow.append(页面)
-    this.加载账号()
+    this.加载配置()
     if (Capacitor.isNativePlatform() === false) {
       this.提示元素.textContent = '请在 Android 应用中使用此页面。'
       this.启动按钮.设置禁用(true)
@@ -215,27 +223,56 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
     for (let 配置 of roots) {
       let 选择框 = new 复选框({
         标签: `${配置.label} — ${配置.path}（${配置.access === 'read' ? '只读' : '读写'}${配置.requiresRoot ? '，需要 Root' : ''}）`,
-        值: 配置.requiresRoot === false,
+        值: this.读取布尔配置(`${本地存储前缀}share:${配置.name}`) ?? 配置.requiresRoot === false,
+        变化处理函数: (选中: boolean): void => this.保存共享选择(配置.name, 选中),
       })
       this.共享选择项列表.push({ 配置, 选择框 })
       this.共享列表元素.append(选择框)
     }
+    this.当前连接共享名列表 = this.获得选中共享().map((共享: SMB共享配置): string => 共享.name)
   }
 
-  private 加载账号(): void {
-    let 用户名 = window.localStorage.getItem('android-smb:username')
-    let 密码 = window.localStorage.getItem('android-smb:password')
+  private 加载配置(): void {
+    let 用户名 = window.localStorage.getItem(`${本地存储前缀}username`)
+    let 密码 = window.localStorage.getItem(`${本地存储前缀}password`)
+    let 端口文本 = window.localStorage.getItem(`${本地存储前缀}port`)
+    let 端口 = Number(端口文本)
     if (用户名 !== null && 用户名 !== '') {
       this.用户名输入.设置值(用户名)
     }
     if (密码 !== null && 密码 !== '') {
       this.密码输入.设置值(密码)
     }
+    if (端口文本 !== null && Number.isInteger(端口) && 端口 >= 1 && 端口 <= 65535) {
+      this.端口输入.设置值(端口文本)
+    }
+    this.根模式选择.设置值(this.读取布尔配置(`${本地存储前缀}root-mode`) ?? false)
   }
 
   private 保存账号(): void {
-    window.localStorage.setItem('android-smb:username', this.用户名输入.获得值())
-    window.localStorage.setItem('android-smb:password', this.密码输入.获得值())
+    window.localStorage.setItem(`${本地存储前缀}username`, this.用户名输入.获得值())
+    window.localStorage.setItem(`${本地存储前缀}password`, this.密码输入.获得值())
+  }
+
+  private 保存端口(): void {
+    window.localStorage.setItem(`${本地存储前缀}port`, this.端口输入.获得值())
+  }
+
+  private 保存Root模式(启用: boolean): void {
+    this.更新默认端口(启用)
+    window.localStorage.setItem(`${本地存储前缀}root-mode`, String(启用))
+    this.保存端口()
+  }
+
+  private 保存共享选择(共享名: string, 选中: boolean): void {
+    window.localStorage.setItem(`${本地存储前缀}share:${共享名}`, String(选中))
+  }
+
+  private 读取布尔配置(键: string): boolean | undefined {
+    let 值 = window.localStorage.getItem(键)
+    if (值 === 'true') return true
+    if (值 === 'false') return false
+    return undefined
   }
 
   private async 启动服务器(): Promise<void> {
