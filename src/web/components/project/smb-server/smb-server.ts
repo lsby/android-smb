@@ -6,6 +6,7 @@ import { 创建元素 } from '../../../global/tools/create-element'
 import { 主要按钮, 危险按钮, 普通按钮 } from '../../general/base/base-button'
 import { 复选框 } from '../../general/form/form-checkbox'
 import { 密码输入框, 数字输入框, 普通输入框 } from '../../general/form/form-input'
+import { 应用侧栏组件 } from '../app-drawer/app-drawer'
 import { 应用更新组件 } from '../app-updater/app-updater'
 
 type 发出事件类型 = {}
@@ -54,6 +55,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
     文本: '复制 PC 连接命令',
     点击处理函数: async (): Promise<void> => await this.复制PC连接命令(),
   })
+  private 应用侧栏 = new 应用侧栏组件()
   private 应用更新 = new 应用更新组件()
   private 共享选择项列表: 共享选择项[] = []
   private 当前连接共享名列表 = ['internal']
@@ -76,7 +78,13 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       },
     })
     页面.append(
-      创建元素('h1', { textContent: 'Android SMB', style: { margin: '0', fontSize: '28px' } }),
+      创建元素('div', {
+        style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' },
+        children: [
+          创建元素('h1', { textContent: 'Android SMB', style: { margin: '0', fontSize: '28px' } }),
+          this.应用侧栏,
+        ],
+      }),
       创建元素('p', {
         textContent: '把内部存储和 SD 卡作为可读写 SMB 共享，也可在 Root 模式下只读共享系统根。',
         style: { margin: '0', color: 'var(--次要文字颜色)', lineHeight: '1.6' },

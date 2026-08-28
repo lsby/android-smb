@@ -212,6 +212,10 @@ APK 发布需要在仓库的 GitHub Actions Secrets 中配置以下值：
 
 签名密钥必须长期保存并保持不变，否则后续 APK 无法覆盖升级已经安装的版本。首次启用 GitHub Pages 时，请在仓库设置中将 Pages 的发布来源选择为 `gh-pages` 分支。
 
+## 许可证
+
+本项目自身代码采用 [MIT License](LICENSE) 开源。仓库中引用或固定的第三方代码仍遵循各自的许可证，原生 Rust 依赖声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ## 上游项目
 
 SMB 核心基于 [`paltaio/rust-smb-server`](https://github.com/paltaio/rust-smb-server)，仓库内固定的上游源码及其许可证位于 `native/vendor/smb-server`。
