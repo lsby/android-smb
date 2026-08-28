@@ -6,6 +6,7 @@ import { 创建元素 } from '../../../global/tools/create-element'
 import { 主要按钮, 危险按钮, 普通按钮 } from '../../general/base/base-button'
 import { 复选框 } from '../../general/form/form-checkbox'
 import { 密码输入框, 数字输入框, 普通输入框 } from '../../general/form/form-input'
+import { 应用更新组件 } from '../app-updater/app-updater'
 
 type 发出事件类型 = {}
 type 监听事件类型 = {}
@@ -79,6 +80,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
         textContent: '把内部存储和 SD 卡作为可读写 SMB 共享，也可在 Root 模式下只读共享系统根。',
         style: { margin: '0', color: 'var(--次要文字颜色)', lineHeight: '1.6' },
       }),
+      new 应用更新组件(),
       this.创建状态卡片(),
       this.创建账号卡片(),
       this.创建共享卡片(),

@@ -6,6 +6,7 @@ import com.getcapacitor.BridgeActivity;
 public final class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(AppUpdaterPlugin.class);
         registerPlugin(SmbServerPlugin.class);
         super.onCreate(savedInstanceState);
     }
