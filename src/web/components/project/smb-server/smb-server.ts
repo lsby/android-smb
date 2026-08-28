@@ -68,6 +68,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   private 共享选择项列表: 共享选择项[] = []
   private 当前连接共享名列表 = ['internal']
   private 状态定时器: number | undefined
+  private 启动按钮视口顶部: number | undefined
 
   protected override async 当加载时(): Promise<void> {
     this.获得宿主样式().display = 'block'
@@ -276,8 +277,10 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   }
 
   private async 启动服务器(): Promise<void> {
+    this.记录启动按钮位置()
     try {
       this.启动按钮.设置禁用(true)
+      this.恢复启动按钮位置(false)
       let 端口 = Number(this.端口输入.获得值())
       if (Number.isInteger(端口) === false || 端口 < 1 || 端口 > 65535) {
         throw new Error('端口必须是 1–65535 之间的整数。')
@@ -305,8 +308,20 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       await this.刷新状态()
     } catch (错误: unknown) {
       this.启动按钮.设置禁用(false)
+      this.恢复启动按钮位置(true)
       await this.显示启动错误(错误)
     }
+  }
+
+  private 记录启动按钮位置(): void {
+    this.启动按钮视口顶部 = this.启动按钮.getBoundingClientRect().top
+  }
+
+  private 恢复启动按钮位置(结束跟踪: boolean): void {
+    if (this.启动按钮视口顶部 === undefined) return
+    let 偏移 = this.启动按钮.getBoundingClientRect().top - this.启动按钮视口顶部
+    if (Math.abs(偏移) >= 1) window.scrollBy(0, 偏移)
+    if (结束跟踪) this.启动按钮视口顶部 = undefined
   }
 
   private async 停止服务器(): Promise<void> {
@@ -409,6 +424,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       this.PC连接区域.style.display = 'none'
       this.提示元素.textContent = ''
     }
+    this.恢复启动按钮位置(状态.state !== 'starting')
   }
 
   private 显示错误(错误: unknown): void {
