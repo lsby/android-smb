@@ -54,6 +54,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
     文本: '复制 PC 连接命令',
     点击处理函数: async (): Promise<void> => await this.复制PC连接命令(),
   })
+  private 应用更新 = new 应用更新组件()
   private 共享选择项列表: 共享选择项[] = []
   private 当前连接共享名列表 = ['internal']
   private 状态定时器: number | undefined
@@ -80,7 +81,6 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
         textContent: '把内部存储和 SD 卡作为可读写 SMB 共享，也可在 Root 模式下只读共享系统根。',
         style: { margin: '0', color: 'var(--次要文字颜色)', lineHeight: '1.6' },
       }),
-      new 应用更新组件(),
       this.创建状态卡片(),
       this.创建账号卡片(),
       this.创建共享卡片(),
@@ -196,7 +196,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   private 创建操作区域(): HTMLDivElement {
     return 创建元素('div', {
       style: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
-      children: [this.启动按钮, this.停止按钮],
+      children: [this.启动按钮, this.停止按钮, this.应用更新],
     })
   }
 
