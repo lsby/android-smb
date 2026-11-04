@@ -54,9 +54,6 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
-      - name: 拉取 Android 签名密钥库
-        run: npm run task -- external-lfs:pull -- --file private/android/android-release.p12
-
       - name: 加载 Android 签名配置
         run: pnpm exec tsx scripts/public/prepare-android-signing.ts
 
