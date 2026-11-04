@@ -4,11 +4,42 @@ import dotenv from 'dotenv'
 import fs from 'fs'
 import sqlite3 from 'node-sqlite3-wasm'
 import path from 'path'
+import { 读取环境文件明文 } from '../setup/env-crypto-core.mjs'
 
 type 迁移 = { 名称: string; SQL内容: string; 校验和: string }
 type 已完成迁移记录 = { 名称: string; 校验和: string }
 
+function 解析项目根目录(): string {
+  let 显式指定根目录 = process.env['PRISMA_ROOT_DIR']
+  if (显式指定根目录 !== undefined && 显式指定根目录 !== '') {
+    return path.resolve(显式指定根目录)
+  }
+  let 当前目录 = import.meta.dirname
+  // 1. Windows Electron 产物结构: .../resources/app/dist/scripts/db -> 向上 5 层至 app 目录
+  let electronWindows特征 = path.join('resources', 'app', 'dist', 'scripts', 'db')
+  if (当前目录.includes(electronWindows特征) === true) {
+    return path.resolve(当前目录, '../../../../..')
+  }
+  // 2. 标准 Node / Docker 编译产物结构: .../dist/scripts/db -> 向上 3 层至应用根目录
+  let dist特征 = path.join('dist', 'scripts', 'db')
+  if (当前目录.includes(dist特征) === true) {
+    return path.resolve(当前目录, '../../..')
+  }
+  // 3. 源码开发态结构: .../scripts/db -> 向上 2 层至项目根目录
+  return path.resolve(当前目录, '../..')
+}
+
+let 项目根目录 = 解析项目根目录()
 let 获得错误消息 = (错误: unknown): string => (错误 instanceof Error ? 错误.message : String(错误))
+
+let 获得项目路径 = (目标路径: string): string => path.resolve(项目根目录, 目标路径)
+
+let 加载环境文件 = (环境文件: string): void => {
+  let 文件变量 = dotenv.parse(读取环境文件明文(项目根目录, 获得项目路径(环境文件)))
+  for (let [名称, 值] of Object.entries(文件变量)) {
+    if (process.env[名称] === undefined) process.env[名称] = 值
+  }
+}
 
 let 获得环境文件参数 = (): string | null => {
   let 环境文件参数 = process.argv[2]
@@ -38,11 +69,11 @@ let 读取可空迁移时间 = (值: unknown, 字段名: string): string | numbe
 let 获得数据库路径 = (): string => {
   let 环境文件参数 = 获得环境文件参数()
   if (环境文件参数 !== null) {
-    dotenv.config({ path: 环境文件参数 })
+    加载环境文件(环境文件参数)
   } else {
     let 环境文件路径 = process.env['ENV_FILE_PATH']
     if (环境文件路径 !== undefined && 环境文件路径 !== '') {
-      dotenv.config({ path: 环境文件路径 })
+      加载环境文件(环境文件路径)
     }
   }
 
@@ -59,7 +90,7 @@ let 获得数据库路径 = (): string => {
     }
     数据库路径 = 数据库路径.replaceAll('${DB_PATH}', 数据库路径变量.replace(/^\.\//, ''))
   }
-  return path.resolve(process.cwd(), 数据库路径)
+  return 获得项目路径(数据库路径)
 }
 
 let 读取迁移组 = (迁移目录: string): 迁移[] => {
@@ -83,8 +114,8 @@ let 读取迁移组 = (迁移目录: string): 迁移[] => {
     })
 }
 
-let 执行Prisma命令 = (命令: 'db push' | 'generate'): void => {
-  execSync(`prisma ${命令}`, { stdio: 'inherit' })
+let 执行Prisma命令 = (命令: 'generate'): void => {
+  execSync(`prisma ${命令}`, { stdio: ['ignore', 'inherit', 'inherit'] })
 }
 
 let 确保迁移记录表 = (数据库: sqlite3.Database): void => {
@@ -209,16 +240,13 @@ let 执行迁移 = (数据库: sqlite3.Database, 迁移: 迁移): void => {
 let 主函数 = (): void => {
   let 数据库路径 = 获得数据库路径()
   process.env['DB_PATH_PRISMA'] = `file:${数据库路径.replaceAll('\\', '/')}`
-  let 迁移组 = 读取迁移组(path.join(process.cwd(), 'prisma', 'migrations'))
-  let 是否本地命令 = 获得环境文件参数() !== null
+  let 参数组 = process.argv.slice(2)
+  let 迁移组 = 读取迁移组(path.join(项目根目录, 'prisma', 'migrations'))
+  let 是否生成类型 = 获得环境文件参数() !== null || 参数组.includes('--generate')
   if (迁移组.length === 0) {
-    if (是否本地命令 === false) {
-      throw new Error('未检测到任何迁移，打包环境不能使用 Prisma db push')
-    }
-    console.log('未检测到任何迁移，使用 Prisma db push 初始化数据库')
-    执行Prisma命令('db push')
-    执行Prisma命令('generate')
-    return
+    throw new Error(
+      '未检测到任何迁移。请先在开发环境运行 npm run task -- db:push:dev:web 生成第一份 migration 并提交 Git；CI、测试、生产和打包环境只允许应用已提交的迁移。',
+    )
   }
   let 数据库目录 = path.dirname(数据库路径)
   if (fs.existsSync(数据库目录) === false) {
@@ -232,7 +260,6 @@ let 主函数 = (): void => {
     let 已完成记录表 = 读取已完成迁移记录表(数据库)
     校验已完成迁移(迁移组, 已完成记录表)
 
-    let 参数组 = process.argv.slice(2)
     let 标记参数位置 = 参数组.indexOf('--applied')
     if (标记参数位置 !== -1) {
       let 迁移名称 = 参数组[标记参数位置 + 1]
@@ -253,7 +280,7 @@ let 主函数 = (): void => {
   } finally {
     数据库.close()
   }
-  if (是否本地命令 === true) {
+  if (是否生成类型 === true) {
     执行Prisma命令('generate')
   }
 }

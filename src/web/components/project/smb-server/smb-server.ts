@@ -27,25 +27,14 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   private PC说明元素 = 创建元素('p')
   private PC命令元素 = 创建元素('code')
   private 共享列表元素 = 创建元素('div')
-  private 用户名输入 = new 普通输入框({ 值: 'android-smb', 输入处理函数: (): void => this.保存账号() })
-  private 密码输入 = new 密码输入框({ 值: 'android-smb', 输入处理函数: (): void => this.保存账号() })
-  private 端口输入 = new 数字输入框({
-    值: '4450',
-    最小值: '1',
-    最大值: '65535',
-    步长: '1',
-    输入处理函数: (): void => this.保存端口(),
-  })
-  private 显示密码选择 = new 复选框({
-    标签: '显示密码',
-    值: false,
-    变化处理函数: (显示: boolean): void => this.密码输入.设置类型(显示 ? 'text' : 'password'),
-  })
+  private 用户名输入 = new 普通输入框({ 值: 'android-smb' })
+  private 密码输入 = new 密码输入框({ 值: 'android-smb' })
+  private 端口输入 = new 数字输入框({ 值: 4450, 最小值: 1, 最大值: 65535, 步长: 1 })
+  private 显示密码选择 = new 复选框({ 标签: '显示密码', 值: false })
   private 根模式选择 = new 复选框({
     标签: '启用 Root 模式',
     值: false,
     额外提示: '系统根和 1–1023 端口需要 Root。只有启动服务器时才会请求 Root 授权。',
-    变化处理函数: (启用: boolean): void => this.保存Root模式(启用),
   })
   private 启动按钮 = new 主要按钮({
     文本: '启动服务器',
@@ -69,6 +58,15 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   private 当前连接共享名列表 = ['internal']
   private 状态定时器: number | undefined
   private 启动按钮视口顶部: number | undefined
+
+  public constructor() {
+    super()
+    this.用户名输入.监听发出事件('输入', (): void => this.保存账号())
+    this.密码输入.监听发出事件('输入', (): void => this.保存账号())
+    this.端口输入.监听发出事件('输入', (): void => this.保存端口())
+    this.显示密码选择.监听发出事件('变化', (事件): void => this.密码输入.设置类型(事件.detail ? 'text' : 'password'))
+    this.根模式选择.监听发出事件('变化', (事件): void => this.保存Root模式(事件.detail))
+  }
 
   protected override async 当加载时(): Promise<void> {
     this.获得宿主样式().display = 'block'
@@ -225,8 +223,8 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       let 选择框 = new 复选框({
         标签: `${配置.label} — ${配置.path}（${配置.access === 'read' ? '只读' : '读写'}${配置.requiresRoot ? '，需要 Root' : ''}）`,
         值: this.读取布尔配置(`${本地存储前缀}share:${配置.name}`) ?? 配置.requiresRoot === false,
-        变化处理函数: (选中: boolean): void => this.保存共享选择(配置.name, 选中),
       })
+      选择框.监听发出事件('变化', (事件): void => this.保存共享选择(配置.name, 事件.detail))
       this.共享选择项列表.push({ 配置, 选择框 })
       this.共享列表元素.append(选择框)
     }
@@ -245,7 +243,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
       this.密码输入.设置值(密码)
     }
     if (端口文本 !== null && Number.isInteger(端口) && 端口 >= 1 && 端口 <= 65535) {
-      this.端口输入.设置值(端口文本)
+      this.端口输入.设置值(端口)
     }
     this.根模式选择.设置值(this.读取布尔配置(`${本地存储前缀}root-mode`) ?? false)
   }
@@ -256,7 +254,7 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
   }
 
   private 保存端口(): void {
-    window.localStorage.setItem(`${本地存储前缀}port`, this.端口输入.获得值())
+    window.localStorage.setItem(`${本地存储前缀}port`, String(this.端口输入.获得值() ?? ''))
   }
 
   private 保存Root模式(启用: boolean): void {
@@ -343,10 +341,10 @@ export class SMB服务器组件 extends 组件基类<发出事件类型, 监听�
 
   private 更新默认端口(启用Root: boolean): void {
     let 当前端口 = this.端口输入.获得值()
-    if (启用Root && 当前端口 === '4450') {
-      this.端口输入.设置值('445')
-    } else if (启用Root === false && 当前端口 === '445') {
-      this.端口输入.设置值('4450')
+    if (启用Root && 当前端口 === 4450) {
+      this.端口输入.设置值(445)
+    } else if (启用Root === false && 当前端口 === 445) {
+      this.端口输入.设置值(4450)
     }
   }
 

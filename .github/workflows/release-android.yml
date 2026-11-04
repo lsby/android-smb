@@ -63,10 +63,10 @@ jobs:
           echo "version_name=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - name: 构建 Android Web 资源
-        run: pnpm exec dotenv -e ./.env/.env.production.pure-frontend -- pnpm run _build:web:pure-frontend
+        run: pnpm task build:web:pure-frontend --env ./.env/.env.production.pure-frontend
 
       - name: 同步 Capacitor Android 工程
-        run: pnpm capacitor:sync:android
+        run: pnpm task capacitor:sync:android --env ./.env/.env.production.pure-frontend
 
       - name: 构建未签名 Release APK
         env:

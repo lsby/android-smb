@@ -49,7 +49,7 @@ jobs:
         run: pnpm run _check:type
 
       - name: 构建 GitHub Pages
-        run: pnpm run public:oss:aliyun -- --build-only=${{ github.event.repository.name }}
+        run: pnpm task public:oss:aliyun -- --build-only=${{ github.event.repository.name }}
 
       - name: 发布到 gh-pages 分支
         if: github.event_name != 'pull_request'

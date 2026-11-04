@@ -4,7 +4,6 @@ import crypto from 'crypto'
 import { config as 加载环境文件 } from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import readline from 'readline/promises'
 import { fileURLToPath } from 'url'
 import { z } from 'zod'
 
@@ -48,7 +47,7 @@ function 执行pnpm(参数: string[]): void {
   let 是否Windows = process.platform === 'win32'
   let 命令 = 是否Windows === true ? 'cmd.exe' : 'pnpm'
   let 完整参数 = 是否Windows === true ? ['/d', '/s', '/c', 'pnpm', ...参数] : 参数
-  execFileSync(命令, 完整参数, { cwd: 项目根目录, env: process.env, stdio: 'inherit' })
+  execFileSync(命令, 完整参数, { cwd: 项目根目录, env: process.env, stdio: ['ignore', 'inherit', 'inherit'] })
 }
 
 function 构建纯前端应用(云端目标目录: string): void {
@@ -57,7 +56,7 @@ function 构建纯前端应用(云端目标目录: string): void {
   let 加载结果 = 加载环境文件({ path: 环境文件路径, override: true })
   if (加载结果.error !== undefined) throw 加载结果.error
   console.log(`正在构建纯前端模式，公共路径为 ${公共路径}`)
-  执行pnpm(['run', '_clean:web'])
+  执行pnpm(['task', 'clean:web'])
   执行pnpm([
     'exec',
     'parcel',
@@ -149,18 +148,6 @@ function 计算变更(
   return { 上传, 删除 }
 }
 
-async function 请求确认(上传数量: number, 删除数量: number): Promise<boolean> {
-  if (process.argv.includes('--yes') === true || process.argv.includes('-y') === true) return true
-  let 终端 = readline.createInterface({ input: process.stdin, output: process.stdout })
-  try {
-    let 回答 = await 终端.question(`将上传或更新 ${上传数量} 个文件，并删除 ${删除数量} 个云端文件。继续？(Y/n): `)
-    let 标准回答 = 回答.trim().toLowerCase()
-    return 标准回答 === '' || 标准回答 === 'y' || 标准回答 === 'yes'
-  } finally {
-    终端.close()
-  }
-}
-
 async function 执行上传(客户端: OSS, 任务列表: 上传任务[]): Promise<void> {
   let 当前索引 = 0
   let 运行任务 = async (): Promise<void> => {
@@ -200,6 +187,9 @@ async function 执行同步(): Promise<void> {
     console.log('纯前端 OSS 子目录构建完成。')
     return
   }
+  if (process.argv.includes('--confirmed') === false) {
+    throw new Error('OSS 同步必须通过 npm run task -- public:oss:aliyun 启动并在准备阶段确认')
+  }
   let 配置 = 读取配置()
   let 云端目标目录 = 标准化目标目录(配置.云端目标目录)
   构建纯前端应用(云端目标目录)
@@ -218,10 +208,6 @@ async function 执行同步(): Promise<void> {
     return
   }
   for (let 云端键 of 变更.删除) console.log(`[待删除] ${云端键}`)
-  if ((await 请求确认(变更.上传.length, 变更.删除.length)) === false) {
-    console.log('已取消同步。')
-    return
-  }
   await 执行上传(客户端, 变更.上传)
   await 执行删除(客户端, 变更.删除)
   console.log('阿里云 OSS 同步完成。')

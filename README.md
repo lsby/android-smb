@@ -152,8 +152,8 @@ Rust SMB 子进程
 
 ```powershell
 pnpm install
-pnpm exec dotenv -e ./.env/.env.development.pure-frontend -- pnpm _build:web:pure-frontend
-pnpm capacitor:sync:android
+pnpm task build:web:pure-frontend --env ./.env/.env.development.pure-frontend
+pnpm task capacitor:sync:android --env ./.env/.env.development.pure-frontend
 ./android/gradlew.bat -p android :app:assembleDebug
 ```
 
@@ -166,7 +166,7 @@ android/app/build/outputs/apk/debug/app-debug.apk
 仅开发网页落地页时可以运行：
 
 ```powershell
-pnpm run run:pure-frontend:dev
+pnpm task dev:pure-frontend
 ```
 
 ## 发布落地页到阿里云 OSS
@@ -183,13 +183,13 @@ pnpm run run:pure-frontend:dev
 3. 先做一次不连接 OSS 的子目录构建检查：
 
    ```powershell
-   pnpm public:oss:aliyun -- --build-only=/android-smb/
+   pnpm task public:oss:aliyun -- --build-only=/android-smb/
    ```
 
-4. 预览变更并确认发布：
+4. 在准备阶段确认后，构建、比较差异并同步发布：
 
    ```powershell
-   pnpm public:oss:aliyun
+   pnpm task public:oss:aliyun
    ```
 
 自动化环境可追加 `--yes` 跳过确认。为避免误删整个 Bucket，脚本禁止把 Bucket 根目录作为同步目标；请始终给项目配置独立子目录。

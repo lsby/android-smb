@@ -3,6 +3,11 @@
 # =========================
 /node_modules
 /OCR-portable-python*
+/.env/*.decode
+/.project-config.key
+/.external-lfs/recovery/
+/.external-lfs/operation.lock
+/test/unit/unit-test.test.ts
 
 # =========================
 # 编译与打包产物
@@ -12,6 +17,8 @@
 /package
 /release
 /native/smb-server/target
+/release-info.json
+/android
 
 # =========================
 # Parcel
@@ -30,6 +37,7 @@
 # =========================
 /db/*
 /data/window-state.json
+/.setup-state.json
 
 # =========================
 # MAC
@@ -45,3 +53,11 @@
 # 敏感配置
 # =========================
 /scripts/public/release-oss-aliyun-config.json
+
+# =========================
+# 临时文件与不需要打包的目录
+# =========================
+/tmp/
+*.docx
+*.pdf
+*.pptx
