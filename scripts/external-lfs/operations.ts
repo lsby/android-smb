@@ -200,6 +200,16 @@ function 移入恢复区(文件路径: string, 相对路径: string, 根目录: 
   console.log(`[保留本地版本] ${相对路径} -> ${path.relative(项目根目录, 目标)}`)
 }
 
+function 原子复制到目标(来源: string, 目标: string): void {
+  let 同目录临时文件 = `${目标}.${process.pid.toString()}.${crypto.randomUUID()}.tmp`
+  try {
+    fs.copyFileSync(来源, 同目录临时文件, fs.constants.COPYFILE_EXCL)
+    fs.renameSync(同目录临时文件, 目标)
+  } finally {
+    fs.rmSync(同目录临时文件, { force: true })
+  }
+}
+
 async function 下载一个(上下文: 操作上下文, 清单: 清单, 恢复根?: string): Promise<void> {
   let 目标 = path.resolve(项目根目录, ...清单.path.split('/'))
   if (fs.existsSync(目标) === true) {
@@ -219,7 +229,7 @@ async function 下载一个(上下文: 操作上下文, 清单: 清单, 恢复�
       throw new Error(`下载内容哈希与清单不一致: ${清单.path}`)
     }
     fs.mkdirSync(path.dirname(目标), { recursive: true })
-    fs.renameSync(明文路径, 目标)
+    原子复制到目标(明文路径, 目标)
     console.log(`[下载] ${清单.path} (来源: ${清单.remote.target})`)
   } finally {
     fs.rmSync(临时根, { recursive: true, force: true })

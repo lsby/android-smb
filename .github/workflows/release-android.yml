@@ -54,6 +54,12 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
+      - name: 拉取 Android 签名密钥库
+        run: npm run task -- external-lfs:pull -- --file private/android/android-release.p12
+
+      - name: 加载 Android 签名配置
+        run: pnpm exec tsx scripts/public/prepare-android-signing.ts
+
       - name: 计算 Release 版本
         id: release_version
         shell: bash
@@ -88,20 +94,15 @@ jobs:
 
       - name: 签名并验证 APK
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           TAG_NAME: ${{ steps.release_version.outputs.tag_name }}
         shell: bash
         run: |
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+          for name in ANDROID_KEYSTORE_PATH ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
             if [[ -z "${!name}" ]]; then
-              echo "缺少 GitHub Secret: $name" >&2
+              echo "缺少 Android 签名配置: $name" >&2
               exit 1
             fi
           done
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-release.jks"
           apksigner_path="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           if [[ -z "$apksigner_path" ]]; then
             echo '未找到 Android SDK apksigner。' >&2
@@ -110,7 +111,7 @@ jobs:
           mkdir -p release/android
           output="release/android/android-smb-$TAG_NAME-arm64-v8a.apk"
           "$apksigner_path" sign \
-            --ks "$RUNNER_TEMP/android-release.jks" \
+            --ks "$ANDROID_KEYSTORE_PATH" \
             --ks-key-alias "$ANDROID_KEY_ALIAS" \
             --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
             --key-pass env:ANDROID_KEY_PASSWORD \

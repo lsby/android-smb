@@ -8,6 +8,7 @@
 /.external-lfs/recovery/
 /.external-lfs/operation.lock
 /test/unit/unit-test.test.ts
+/private/
 
 # =========================
 # 编译与打包产物

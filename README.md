@@ -203,12 +203,9 @@ pnpm task dev:pure-frontend
 
 APK 发布需要在仓库的 GitHub Actions Secrets 中配置以下值：
 
-| Secret                      | 说明                       |
-| --------------------------- | -------------------------- |
-| `ANDROID_KEYSTORE_BASE64`   | JKS/Keystore 文件的 Base64 |
-| `ANDROID_KEYSTORE_PASSWORD` | 密钥库密码                 |
-| `ANDROID_KEY_ALIAS`         | 签名密钥别名               |
-| `ANDROID_KEY_PASSWORD`      | 签名密钥密码               |
+- `PROJECT_CONFIG_KEY_FILE`：项目根密钥文件的完整内容。它用于解密 `.env/.env.deploy` 中的签名密码，并解密外挂 LFS 拉取的 Android 密钥库。
+
+Android 签名密码与别名统一保存在加密的 `.env/.env.deploy`，密钥库文件由外挂 LFS 管理；不要再建立独立的 Android 签名 GitHub Secrets。
 
 签名密钥必须长期保存并保持不变，否则后续 APK 无法覆盖升级已经安装的版本。首次启用 GitHub Pages 时，请在仓库设置中将 Pages 的发布来源选择为 `gh-pages` 分支。
 
