@@ -176,7 +176,7 @@
   - `DEPLOY_ALLOW_DIRTY_GIT` 控制部署脚本是否允许工作区、暂存区或未跟踪文件不干净. 它只放宽 dirty 检查, 发布信息中的提交哈希必须始终由发布脚本直接从当前 Git 仓库计算
   - 人工修改加密配置时先运行 `env:decode` 生成 `.decode`, 修改后运行 `env:encode` 写回正式文件并清理全部 `.decode`; 程序运行、构建和发布过程只在内存中解密
   - 环境加密相关任务为 `env:decode`, `env:encode`, `env:enable-encryption`, `env:disable-encryption` 和 `env:status`; 均通过 `npm run task -- <任务名>` 执行
-  - 远程服务器配置统一维护在 `.env/.env.deploy`; GitHub Actions 使用名为 `PROJECT_CONFIG_KEY_FILE` 的 Secret 保存 `.project-config.key` 完整原始内容, 可运行 `npm run task -- setup:github-config-key` 配置
+  - 远程服务器、发布服务和外挂 LFS 的账号、密码、Token、AccessKey 等敏感配置统一维护在 `.env/.env.deploy`, 不得为单个脚本建立独立的凭据 JSON 或第二份凭据环境文件; GitHub Actions 使用名为 `PROJECT_CONFIG_KEY_FILE` 的 Secret 保存 `.project-config.key` 完整原始内容, 可运行 `npm run task -- setup:github-config-key` 配置
   - Git 忽略但需要跨机器同步的证书、密钥与发布材料可通过 [外挂 LFS](doc/framework/external-lfs.md) 管理；Git 提交逐文件加密清单和加密的 `.env/.env.external-lfs`，阿里云 OSS 或腾讯云 COS 保存加密对象，唯一解密根密钥仍为 `.project-config.key`
   - 提交钩子会识别暂存区中的疑似二进制内容，并在放行前要求二次确认。此类文件原则上不应直接写入 Git；确有存储需求时，应优先纳入扩展 LFS，或采用其他合适的外部存储方案
   - 环境变量应当通过 Zod 进行严格校验, 并且不提供业务兜底值, 以便让缺失的配置在启动或构建阶段就能尽早报错

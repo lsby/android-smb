@@ -173,13 +173,13 @@ pnpm task dev:pure-frontend
 
 发布脚本会先按 OSS 子目录重新构建纯前端页面，再比较本地文件 MD5 与云端 ETag。它只上传有变化的文件，并删除目标子目录中本次构建已不存在的文件；HTML 和 Service Worker 使用 `no-cache`，带哈希的静态资源使用长期缓存。
 
-1. 复制配置模板：
+1. 如果环境配置已经加密，先生成临时明文编辑文件：
 
    ```powershell
-   Copy-Item scripts/public/release-oss-aliyun-config.example.json scripts/public/release-oss-aliyun-config.json
+   pnpm task env:decode
    ```
 
-2. 填写 `region`、`accessKeyId`、`accessKeySecret`、`bucket` 和 `云端目标目录`。真实配置已加入 `.gitignore`，不要提交凭据。
+2. 在 `.env/.env.deploy.decode` 中填写 `OSS_RELEASE_REGION`、`OSS_RELEASE_ACCESS_KEY_ID`、`OSS_RELEASE_ACCESS_KEY_SECRET`、`OSS_RELEASE_BUCKET` 和 `OSS_RELEASE_TARGET_DIRECTORY`，然后运行 `pnpm task env:encode` 重新加密并清理临时明文。
 3. 先做一次不连接 OSS 的子目录构建检查：
 
    ```powershell

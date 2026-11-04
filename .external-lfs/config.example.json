@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "credentialsFile": ".env/.env.external-lfs",
+  "credentialsFile": ".env/.env.deploy",
   "keyFile": ".project-config.key",
   "manifestDirectory": ".external-lfs/manifests",
   "targets": {

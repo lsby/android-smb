@@ -1,17 +1,15 @@
 import OSS from 'ali-oss'
 import { execFileSync } from 'child_process'
 import crypto from 'crypto'
-import { config as 加载环境文件 } from 'dotenv'
+import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { z } from 'zod'
+import { 读取环境文件明文 } from '../setup/env-crypto-core.mjs'
 
-let __当前文件名 = fileURLToPath(import.meta.url)
-let __当前目录名 = path.dirname(__当前文件名)
-let 项目根目录 = path.resolve(__当前目录名, '../../')
+let 项目根目录 = path.resolve(import.meta.dirname, '../..')
 let 本地同步目录 = path.join(项目根目录, 'dist/src/web')
-let 配置文件路径 = path.join(__当前目录名, 'release-oss-aliyun-config.json')
+let 部署环境文件路径 = path.join(项目根目录, '.env/.env.deploy')
 
 let 目标目录校验器 = z
   .string()
@@ -19,22 +17,17 @@ let 目标目录校验器 = z
   .regex(/^\/?[\w/-]+\/?$/, '云端目标目录只能包含字母、数字、下划线、短横线和斜杠')
 
 let 配置校验器 = z.object({
-  region: z.string().min(1),
-  accessKeyId: z.string().min(1),
-  accessKeySecret: z.string().min(1),
-  bucket: z.string().min(1),
-  云端目标目录: 目标目录校验器,
+  OSS_RELEASE_REGION: z.string().min(1),
+  OSS_RELEASE_ACCESS_KEY_ID: z.string().min(1),
+  OSS_RELEASE_ACCESS_KEY_SECRET: z.string().min(1),
+  OSS_RELEASE_BUCKET: z.string().min(1),
+  OSS_RELEASE_TARGET_DIRECTORY: 目标目录校验器,
 })
 type 配置类型 = z.infer<typeof 配置校验器>
 type 上传任务 = { 本地绝对路径: string; 云端键: string }
 
 function 读取配置(): 配置类型 {
-  if (fs.existsSync(配置文件路径) === false) {
-    throw new Error(
-      `缺少 OSS 配置文件。请复制 release-oss-aliyun-config.example.json 为 ${path.basename(配置文件路径)} 后填写。`,
-    )
-  }
-  return 配置校验器.parse(JSON.parse(fs.readFileSync(配置文件路径, 'utf-8')))
+  return 配置校验器.parse(dotenv.parse(读取环境文件明文(项目根目录, 部署环境文件路径)))
 }
 
 function 标准化目标目录(目录: string): string {
@@ -53,8 +46,7 @@ function 执行pnpm(参数: string[]): void {
 function 构建纯前端应用(云端目标目录: string): void {
   let 公共路径 = `/${云端目标目录}`
   let 环境文件路径 = path.join(项目根目录, '.env/.env.production.pure-frontend')
-  let 加载结果 = 加载环境文件({ path: 环境文件路径, override: true })
-  if (加载结果.error !== undefined) throw 加载结果.error
+  dotenv.populate(process.env, dotenv.parse(读取环境文件明文(项目根目录, 环境文件路径)), { override: true })
   console.log(`正在构建纯前端模式，公共路径为 ${公共路径}`)
   执行pnpm(['task', 'clean:web'])
   执行pnpm([
@@ -191,13 +183,13 @@ async function 执行同步(): Promise<void> {
     throw new Error('OSS 同步必须通过 npm run task -- public:oss:aliyun 启动并在准备阶段确认')
   }
   let 配置 = 读取配置()
-  let 云端目标目录 = 标准化目标目录(配置.云端目标目录)
+  let 云端目标目录 = 标准化目标目录(配置.OSS_RELEASE_TARGET_DIRECTORY)
   构建纯前端应用(云端目标目录)
   let 客户端 = new OSS({
-    region: 配置.region,
-    accessKeyId: 配置.accessKeyId,
-    accessKeySecret: 配置.accessKeySecret,
-    bucket: 配置.bucket,
+    region: 配置.OSS_RELEASE_REGION,
+    accessKeyId: 配置.OSS_RELEASE_ACCESS_KEY_ID,
+    accessKeySecret: 配置.OSS_RELEASE_ACCESS_KEY_SECRET,
+    bucket: 配置.OSS_RELEASE_BUCKET,
   })
   let 本地文件 = 递归获取文件(本地同步目录)
   let 云端对象 = await 获取云端对象(客户端, 云端目标目录)

@@ -41,6 +41,16 @@ jobs:
       - name: 配置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v4
 
+      - name: 写入项目配置密钥
+        env:
+          PROJECT_CONFIG_KEY_FILE: ${{ secrets.PROJECT_CONFIG_KEY_FILE }}
+        run: |
+          if [[ -z "$PROJECT_CONFIG_KEY_FILE" ]]; then
+            echo "缺少 GitHub Secret: PROJECT_CONFIG_KEY_FILE" >&2
+            exit 1
+          fi
+          printf '%s\n' "$PROJECT_CONFIG_KEY_FILE" > .project-config.key
+
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 

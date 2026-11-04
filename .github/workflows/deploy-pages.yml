@@ -36,6 +36,16 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: 写入项目配置密钥
+        env:
+          PROJECT_CONFIG_KEY_FILE: ${{ secrets.PROJECT_CONFIG_KEY_FILE }}
+        run: |
+          if [[ -z "$PROJECT_CONFIG_KEY_FILE" ]]; then
+            echo "缺少 GitHub Secret: PROJECT_CONFIG_KEY_FILE" >&2
+            exit 1
+          fi
+          printf '%s\n' "$PROJECT_CONFIG_KEY_FILE" > .project-config.key
+
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
@@ -46,7 +56,7 @@ jobs:
         run: pnpm exec eslint .
 
       - name: 检查类型
-        run: pnpm run _check:type
+        run: pnpm task check:type
 
       - name: 构建 GitHub Pages
         run: pnpm task public:oss:aliyun -- --build-only=${{ github.event.repository.name }}

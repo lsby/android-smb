@@ -9,7 +9,7 @@
 ```json
 {
   "version": 1,
-  "credentialsFile": ".env/.env.external-lfs",
+  "credentialsFile": ".env/.env.deploy",
   "keyFile": ".project-config.key",
   "manifestDirectory": ".external-lfs/manifests",
   "targets": {
@@ -52,7 +52,7 @@
 
 创建私有 Bucket、开启版本控制，并把权限限制在 `remotePrefix`。工具上传后必须取得 `versionId`，否则立即失败；工具不会远程删除历史对象。
 
-在 `.env/.env.external-lfs` 写入 `config.json` 中声明的各目标环境变量值，然后立即运行 `npm run task -- env:enable-encryption`（或 `env:encode`）加密：
+所有部署、发布和云存储凭据统一写入 `.env/.env.deploy`。不要为某个脚本建立独立的 JSON 凭据文件或第二份环境文件。写入 `config.json` 中声明的各目标环境变量值后，立即运行 `npm run task -- env:enable-encryption`（或 `env:encode`）加密：
 
 ```dotenv
 CONFIG_ENCRYPTION=false
@@ -71,7 +71,7 @@ EXTERNAL_LFS_OSS_ACCESS_KEY_ID=替换为AccessKeyId
 EXTERNAL_LFS_OSS_ACCESS_KEY_SECRET=替换为AccessKeySecret
 ```
 
-加密后的 `.env/.env.external-lfs` 应提交 Git，不得提交明文。日后修改凭据时使用现有的 `env:decode`、`env:encode` 流程。
+加密后的 `.env/.env.deploy` 应提交 Git，不得提交明文。日后修改凭据时使用现有的 `env:decode`、`env:encode` 流程。
 
 ## 安全边界与多目标路由
 
