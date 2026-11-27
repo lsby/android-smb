@@ -69,7 +69,7 @@ export let 开发任务表 = 定义任务({
   'run:pure-frontend:dev': {
     说明: '启动纯前端开发服务器',
     环境文件: 纯前端开发环境文件,
-    依赖: ['clean:web', 'bundle:worker:pure-frontend'],
+    依赖: ['clean:web'],
     运行: 命令('tsx', 'scripts/web/web-run.ts'),
   },
   'run:electron:dev': {
@@ -191,6 +191,12 @@ export let 开发任务表 = 定义任务({
   'dev:web': { 说明: '生成派生文件后启动 Web 开发套件', 依赖: ['generate:all', 'dev:web:watch'] },
   'dev:test:watch': {
     说明: '持续检查和生成测试开发套件使用的派生文件',
+    依赖方式: '并行',
+    依赖: ['watch:type', 'watch:lint', 'watch:api-list', 'watch:api-type', 'watch:web-page-entry'],
+    公开: false,
+  },
+  'dev:test:watch:checks': {
+    说明: '测试开发套件的监听任务，包含类型检查和 ESLint',
     依赖方式: '并行',
     依赖: ['watch:type', 'watch:lint', 'watch:api-list', 'watch:api-type', 'watch:web-page-entry'],
     公开: false,

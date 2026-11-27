@@ -1,7 +1,6 @@
 import { Electron生产环境文件, Sea生产环境文件, Web生产环境文件, 纯前端生产环境文件 } from '../model/task-common'
 import { 命令, 定义任务 } from '../model/task-runner'
 import { 准备Electron发布参数 } from '../prepare/release-electron'
-import { 准备OSS发布参数 } from '../prepare/release-oss-aliyun'
 import { 准备发布版本参数 } from '../prepare/release-version'
 
 export let 发布任务表 = 定义任务({
@@ -23,6 +22,23 @@ export let 发布任务表 = 定义任务({
   'capacitor:open:android': { 说明: '打开 Android 工程', 运行: 命令('cap', 'open', 'android'), 传递参数: true },
 
   // 发行
+  'public:web:oss': {
+    说明: '构建并按确认参数同步纯前端网站至阿里云 OSS',
+    运行: 命令('tsx', 'scripts/public/release-oss-aliyun.ts'),
+    公开: false,
+    传递参数: true,
+  },
+  'public:web:github-pages': {
+    说明: '构建并发布纯前端网站至 GitHub Pages',
+    运行: 命令('tsx', 'scripts/public/release-github-pages.ts'),
+    传递参数: true,
+    公开: false,
+  },
+  'build:web:publish': {
+    说明: '按已启用平台和公共路径构建网站发布产物',
+    运行: 命令('tsx', 'scripts/public/build-websites.ts'),
+    公开: false,
+  },
   'public:docker:local': {
     说明: '执行本地 Docker 发布',
     运行: 命令('tsx', 'scripts/public/release-docker-local.ts'),
@@ -64,12 +80,6 @@ export let 发布任务表 = 定义任务({
     运行: 命令('tsx', 'scripts/public/release-pure-frontend.ts'),
     传递参数: true,
   },
-  'public:oss:aliyun': {
-    说明: '构建并同步纯前端页面到阿里云 OSS',
-    准备运行: 准备OSS发布参数,
-    运行: 命令('tsx', 'scripts/public/release-oss-aliyun.ts'),
-    传递参数: true,
-  },
 
   // 发布
   'release:verify': { 说明: '发布前运行单元测试并完成构建', 依赖: ['test:unit', 'build:all'], 公开: false },
@@ -88,6 +98,6 @@ export let 发布任务表 = 定义任务({
   },
   'release:push': {
     说明: '推送当前的发布提交与版本标签到远程仓库',
-    运行: [命令('git', 'push'), 命令('git', 'push', '--tags')],
+    运行: 命令('tsx', 'scripts/release/release.ts', '--push-only'),
   },
 })

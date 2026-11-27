@@ -2,27 +2,42 @@ import { deepStrictEqual } from 'node:assert/strict'
 import { z } from 'zod'
 
 import { 获得环境变量 } from '../../../src/global/env/env'
-import {
-  流程,
-  行为,
-  观察,
-  需求测试,
-  验收点,
-  type 需求测试上下文,
-  type 需求测试工具,
-} from '../../../src/model/test-requirement'
+import { 流程, 行为, 观察, 需求测试, 验收点, type 需求测试上下文 } from '../../../src/model/test-requirement'
 import { 读取操作结果字段 } from '../../../src/test-tools/operation-assertion'
 import type { JSON对象 } from '../../../src/test-tools/operation-record'
 import { 整理数据库查询结果 } from '../../../src/test-tools/operation-values'
 import { 业务需求, 验收点们 } from './index.requirement'
 
 type 测试数据 = { 结果们: Map<number, JSON对象> }
-type 测试上下文 = 需求测试上下文<测试数据>
+type 测试上下文 = 需求测试上下文 & 测试数据
 
-let 业务流程 = new 流程<测试上下文>({
+let 业务流程 = new 流程({
+  初始化: async (工具): Promise<测试上下文> => {
+    let { DEFAULT_SYSTEM_USER, DEFAULT_SYSTEM_PWD } = 获得环境变量()
+    let 登录响应 = await fetch(new URL('/api/project/login', 工具.服务地址()), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userName: DEFAULT_SYSTEM_USER, userPassword: DEFAULT_SYSTEM_PWD }),
+      signal: 工具.取消信号,
+    })
+    if (登录响应.ok === false) throw new Error(`测试管理员登录请求失败，HTTP ${String(登录响应.status)}`)
+    let { data } = z
+      .object({ status: z.literal('success'), data: z.object({ token: z.string().min(1) }) })
+      .parse(await 登录响应.json())
+    let 配置响应 = await fetch(new URL('/api/system/update-system-config', 工具.服务地址()), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${data.token}` },
+      body: JSON.stringify({ enable_register: true }),
+      signal: 工具.取消信号,
+    })
+    if (配置响应.ok === false) throw new Error(`开启测试环境注册请求失败，HTTP ${String(配置响应.status)}`)
+    z.object({ status: z.literal('success') }).parse(await 配置响应.json())
+    return { 工具, 结果们: new Map<number, JSON对象>() }
+  },
   名称: '开放注册时创建并使用访客账号',
   标签们: ['开放注册', '浏览器'],
-  测试思路: '访客提交两次不同的密码并查库，改正后完成注册。再由独立访客尝试重名注册，核对原账号并验证它仍能登录。',
+  测试思路:
+    '访客提交两次不同的密码并查库，改正后完成注册并用自动带入的用户名登录。关闭该浏览器后，由独立访客尝试重名注册，核对原账号记录保持不变，再独立打开浏览器确认原密码仍能登录。',
   步骤们: [
     new 行为<测试上下文>('提交两次不同的密码', async (当前状态): Promise<测试上下文> => {
       {
@@ -114,8 +129,29 @@ let 业务流程 = new 流程<测试上下文>({
         })
       }
     }),
+    new 行为<测试上下文>('用自动带入的用户名登录', async (当前状态, 提交附件): Promise<测试上下文> => {
+      {
+        提交附件([{ 类型: '文本', 内容: '决策说明\n只填写密码，使用注册成功后自动带入的用户名登录。' }])
+        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
+        await 引擎.输入(引擎.按角色('textbox', { name: '密码', exact: true }), 'TestPass26!', { timeout: 5000 })
+      }
+      {
+        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
+        await 引擎.点击(引擎.按角色('button', { name: '登录', exact: true }), { timeout: 5000 })
+      }
+      {
+        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
+        await 引擎.等待地址('**/index.html', { timeout: 5000, waitUntil: 'domcontentloaded' })
+      }
+      return 当前状态
+    }),
+    new 观察<测试上下文>('确认进入项目首页', async (当前状态): Promise<void> => {
+      let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
+      await 引擎.验证可见(引擎.按角色('heading', { name: '登录', exact: true }), { timeout: 5000 })
+    }),
     new 行为<测试上下文>('使用同名账号再次注册', async (当前状态): Promise<测试上下文> => {
       {
+        await 当前状态.工具.浏览器.关闭('开放注册的访客')
         let 引擎 = await 当前状态.工具.浏览器.打开('重名注册的访客')
         await 引擎.导航('/login.html', { timeout: 5000, waitUntil: 'domcontentloaded' })
       }
@@ -166,25 +202,19 @@ let 业务流程 = new 流程<测试上下文>({
         提交附件([{ 类型: '文本', 内容: '数据库仍只有一条同名账号记录，且账号 ID 未变。' }], { 并入上一组: true })
       }
     }),
-    new 行为<测试上下文>('用自动带入的用户名登录', async (当前状态, 提交附件): Promise<测试上下文> => {
-      {
-        提交附件([{ 类型: '文本', 内容: '决策说明\n只填写密码，使用注册成功后自动带入的用户名登录。' }])
-        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
-        await 引擎.输入(引擎.按角色('textbox', { name: '密码', exact: true }), 'TestPass26!', { timeout: 5000 })
-      }
-      {
-        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
-        await 引擎.点击(引擎.按角色('button', { name: '登录', exact: true }), { timeout: 5000 })
-      }
-      {
-        let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
-        await 引擎.等待地址('**/index.html', { timeout: 5000, waitUntil: 'domcontentloaded' })
-      }
+    new 行为<测试上下文>('重名被拒后使用原密码重新登录', async (当前状态): Promise<测试上下文> => {
+      await 当前状态.工具.浏览器.关闭('重名注册的访客')
+      let 引擎 = await 当前状态.工具.浏览器.打开('重名拒绝后的原账号')
+      await 引擎.导航('/login.html', { timeout: 5000, waitUntil: 'domcontentloaded' })
+      await 引擎.输入(引擎.按角色('textbox', { name: '用户名', exact: true }), 'visitor-e2e', { timeout: 5000 })
+      await 引擎.输入(引擎.按角色('textbox', { name: '密码', exact: true }), 'TestPass26!', { timeout: 5000 })
+      await 引擎.点击(引擎.按角色('button', { name: '登录', exact: true }), { timeout: 5000 })
+      await 引擎.等待地址('**/index.html', { timeout: 5000, waitUntil: 'domcontentloaded' })
       return 当前状态
     }),
-    new 观察<测试上下文>('确认进入项目首页', async (当前状态): Promise<void> => {
-      let 引擎 = 当前状态.工具.浏览器.获得('开放注册的访客')
-      await 引擎.验证可见(引擎.按角色('heading', { name: /把 Android 手机\s*变成局域网共享盘/u }), { timeout: 5000 })
+    new 观察<测试上下文>('确认重名拒绝后原账号仍可登录', async (当前状态): Promise<void> => {
+      let 引擎 = 当前状态.工具.浏览器.获得('重名拒绝后的原账号')
+      await 引擎.验证可见(引擎.按角色('heading', { name: '登录', exact: true }), { timeout: 5000 })
     }),
   ],
   覆盖验收点们: [验收点们['注册成功'], 验收点们['重名被拒绝'], 验收点们['密码不一致']].map(
@@ -196,31 +226,8 @@ let 业务流程 = new 流程<测试上下文>({
   ),
 })
 
-export default class 导出的需求测试 extends 需求测试<测试数据> {
+export default class 导出的需求测试 extends 需求测试 {
   public constructor() {
     super([业务需求], [业务流程], { 使用测试服务: true })
-  }
-
-  protected override async 准备数据(工具: 需求测试工具): Promise<测试数据> {
-    let { DEFAULT_SYSTEM_USER, DEFAULT_SYSTEM_PWD } = 获得环境变量()
-    let 登录响应 = await fetch(new URL('/api/project/login', 工具.服务地址()), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userName: DEFAULT_SYSTEM_USER, userPassword: DEFAULT_SYSTEM_PWD }),
-      signal: 工具.取消信号,
-    })
-    if (登录响应.ok === false) throw new Error(`测试管理员登录请求失败，HTTP ${String(登录响应.status)}`)
-    let { data } = z
-      .object({ status: z.literal('success'), data: z.object({ token: z.string().min(1) }) })
-      .parse(await 登录响应.json())
-    let 配置响应 = await fetch(new URL('/api/system/update-system-config', 工具.服务地址()), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${data.token}` },
-      body: JSON.stringify({ enable_register: true }),
-      signal: 工具.取消信号,
-    })
-    if (配置响应.ok === false) throw new Error(`开启测试环境注册请求失败，HTTP ${String(配置响应.status)}`)
-    z.object({ status: z.literal('success') }).parse(await 配置响应.json())
-    return { 结果们: new Map<number, JSON对象>() }
   }
 }

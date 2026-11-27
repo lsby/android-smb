@@ -1,4 +1,4 @@
-# lsby-playground-ts-app 开发导览
+# lsby-android-smb 开发导览
 
 这是一个具有多个部署目标的全栈 TypeScript 应用程序:
 
@@ -178,7 +178,7 @@
   - `DEPLOY_ALLOW_DIRTY_GIT` 控制部署脚本是否允许工作区、暂存区或未跟踪文件不干净. 它只放宽 dirty 检查, 发布信息中的提交哈希必须始终由发布脚本直接从当前 Git 仓库计算
   - 人工修改加密配置时先运行 `env:decode` 生成 `.decode`, 修改后运行 `env:encode` 写回正式文件并清理全部 `.decode`; 程序运行、构建和发布过程只在内存中解密
   - 环境加密相关任务为 `env:decode`, `env:encode`, `env:enable-encryption`, `env:disable-encryption` 和 `env:status`; 均通过 `npm run task -- <任务名>` 执行
-  - 远程服务器、发布服务和外挂 LFS 的账号、密码、Token、AccessKey 等敏感配置统一维护在 `.env/.env.deploy`, 不得为单个脚本建立独立的凭据 JSON 或第二份凭据环境文件; GitHub Actions 使用名为 `PROJECT_CONFIG_KEY_FILE` 的 Secret 保存 `.project-config.key` 完整原始内容, 可运行 `npm run task -- setup:github-config-key` 配置
+  - 远程服务器配置统一维护在 `.env/.env.deploy`; GitHub Actions 使用名为 `PROJECT_CONFIG_KEY_FILE` 的 Secret 保存 `.project-config.key` 完整原始内容, 可运行 `npm run task -- setup:github-config-key` 配置
   - Git 忽略但需要跨机器同步的证书、密钥与发布材料可通过 [外挂 LFS](doc/framework/external-lfs.md) 管理；Git 提交逐文件加密清单和加密的 `.env/.env.external-lfs`，阿里云 OSS 或腾讯云 COS 保存加密对象，唯一解密根密钥仍为 `.project-config.key`
   - 提交钩子会识别暂存区中的疑似二进制内容，并在放行前要求二次确认。此类文件原则上不应直接写入 Git；确有存储需求时，应优先纳入扩展 LFS，或采用其他合适的外部存储方案
   - 环境变量应当通过 Zod 进行严格校验, 并且不提供业务兜底值, 以便让缺失的配置在启动或构建阶段就能尽早报错
@@ -220,6 +220,9 @@
 
 ### 部署与发布追溯
 
+- **纯前端网站发布**:
+  - 支持将纯前端应用部署到阿里云 OSS 和 GitHub Pages；发布流程、环境配置与同步机制见 [纯前端网站发布指南](doc/framework/oss-publishing.md)。
+
 - **发布产物源码追溯与 Docker 远程部署**:
   - 关于发布任务中 Git 状态拦截、Docker 自动化安全部署机制、以及手动运维流程（如数据库迁移冲突处理），请参见 [doc/framework/deploy-and-release.md](doc/framework/deploy-and-release.md)。
   - 若需执行部署或遇到远程发布问题，**必须**优先参考上述部署指南。
@@ -239,3 +242,5 @@
 - 普通源码修改优先运行 `npm run tidy:all`, 它会自动生成派生文件、自动修复代码格式与可自愈的 ESLint 规则, 并执行静态检查; 需要严格只读检查时可运行 `npm run check:all`
 - 修改派生文件的源头定义后, 优先运行 `npm run tidy:all`, 并确认生成结果已同步更新
 - 修改数据库 Schema 时使用本文件规定的迁移任务, 并检查生成的 migration 与数据库类型
+
+- 移动端需求测试的通用文件清单与项目适配边界见 [移动测试说明](doc/framework/mobile-testing.md)。共有文件两仓库必须保持相同路径和字节内容；项目移动配置、应用构建和业务初始化不得写入通用文件。

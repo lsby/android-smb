@@ -5,6 +5,8 @@ import { 标注截图, 获得视口内标注位置, type 截图标注坐标 } fr
 import type { 浏览器步骤证据, 浏览器测试作用域配置 } from './types'
 
 export type 浏览器步骤证据配置 = { 提交: (证据: 浏览器步骤证据) => Promise<void>; 记录错误: (错误: unknown) => void }
+type 取证目标 = Parameters<typeof 获得视口内标注位置>[0]
+type 取证页面 = Pick<Page, 'isClosed' | 'url' | 'screenshot'>
 
 type 步骤证据记录 = {
   配置: 浏览器步骤证据配置
@@ -43,16 +45,17 @@ export class 浏览器步骤取证作用域 {
     获得配置: (会话名称: string) => 浏览器步骤证据配置,
     执行: () => Promise<T>,
     取证范围: '步骤' | '操作' = '步骤',
+    需要收尾截图: () => boolean = (): boolean => true,
   ): Promise<T> {
     let 记录们 = new Map<浏览器步骤证据记录器, 步骤证据记录>()
     let 当前 = { 已结束: false, 获得配置, 记录们 }
     return await this.当前.run(当前, async (): Promise<T> => {
       try {
         let 结果 = await 执行()
-        for (let 记录器 of 记录们.keys()) await 记录器.采集('步骤结束', `${取证范围}结束时的页面`)
+        if (需要收尾截图()) for (let 记录器 of 记录们.keys()) await 记录器.采集('步骤结束', `${取证范围}结束时的页面`)
         return 结果
       } catch (错误) {
-        for (let 记录器 of 记录们.keys()) await 记录器.采集('失败现场', `${取证范围}失败时的页面`)
+        if (需要收尾截图()) for (let 记录器 of 记录们.keys()) await 记录器.采集('失败现场', `${取证范围}失败时的页面`)
         throw 错误
       } finally {
         当前.已结束 = true
@@ -64,24 +67,12 @@ export class 浏览器步骤取证作用域 {
 
 export type 浏览器会话取证 = { 作用域: 浏览器步骤取证作用域; 会话名称: string }
 
-async function 限制标注用时<T>(任务: Promise<T>): Promise<T> {
-  let 定时器: ReturnType<typeof setTimeout> | undefined
-  try {
-    let 超时 = new Promise<never>((_完成, 拒绝): void => {
-      定时器 = setTimeout((): void => 拒绝(new Error('自动截图标注超时')), 500)
-    })
-    return await Promise.race([任务, 超时])
-  } finally {
-    clearTimeout(定时器)
-  }
-}
-
 /** 将绑定页面的实际画面记录到发起操作的测试步骤。 */
 export class 浏览器步骤证据记录器 {
   private 已导航 = false
 
   public constructor(
-    private 页面: Page,
+    private 页面: 取证页面,
     private 取消信号?: AbortSignal,
     private 取证?: 浏览器会话取证,
   ) {}
@@ -111,7 +102,7 @@ export class 浏览器步骤证据记录器 {
   public async 采集(
     阶段: 浏览器步骤证据['阶段'],
     名称: string,
-    目标?: Locator | 截图标注坐标,
+    目标?: 取证目标 | 截图标注坐标,
     点击作用域?: { 作用域: 浏览器测试作用域配置 | undefined },
   ): Promise<void> {
     let 记录 = this.获得记录()
@@ -134,7 +125,7 @@ export class 浏览器步骤证据记录器 {
     try {
       let 位置 = await this.获得标注位置(记录, 目标)
       if (this.可以采集(记录) === false) return
-      let 原图 = await this.页面.screenshot({ scale: 'css', caret: 'initial', timeout: 1_500 })
+      let 原图 = await this.页面.screenshot({ scale: 'css', caret: 'initial', timeout: 10_000 })
       if (阶段 === '步骤结束' && 记录.最近结果原图?.equals(原图) === true) return
       let 图片 = await this.添加标注(记录, 原图, 位置)
       if (this.可以采集(记录) === false) return
@@ -151,12 +142,12 @@ export class 浏览器步骤证据记录器 {
 
   private async 获得标注位置(
     记录: 步骤证据记录,
-    目标: Locator | 截图标注坐标 | undefined,
+    目标: 取证目标 | 截图标注坐标 | undefined,
   ): Promise<截图标注坐标 | undefined> {
     if (目标 === undefined || 'x' in 目标) return 目标
     if (目标.page() !== this.页面) return undefined
     try {
-      return await 限制标注用时(获得视口内标注位置(目标))
+      return await 获得视口内标注位置(目标)
     } catch (错误) {
       this.报告错误(记录, 错误)
       return undefined
@@ -166,7 +157,7 @@ export class 浏览器步骤证据记录器 {
   private async 添加标注(记录: 步骤证据记录, 原图: Buffer, 位置: 截图标注坐标 | undefined): Promise<Buffer> {
     if (位置 === undefined || this.可以采集(记录) === false) return 原图
     try {
-      return await 限制标注用时(标注截图(this.页面, 原图, 位置))
+      return await 标注截图(原图, 位置)
     } catch (错误) {
       this.报告错误(记录, 错误)
       return 原图

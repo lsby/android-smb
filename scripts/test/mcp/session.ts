@@ -5,11 +5,13 @@ import path from 'node:path'
 import crossSpawn from 'cross-spawn'
 import { z } from 'zod'
 
+import type { 苹果网络中转 } from '../../../src/model/ios-test'
 import type { 提交步骤附件, 流程步骤附件, 测试服务日志内容, 需求测试工具 } from '../../../src/model/test-requirement'
 import { 测试操作记录 } from '../../../src/test-tools/operation-record'
 import { 测试运行工具 } from '../../../src/test-tools/runtime'
 import { 停止测试进程 } from '../test-process'
 import type { 测试服务 } from '../test-server'
+import type { 工具输出 } from './register-tool'
 import type { MCP测试工具宿主 } from './tools'
 
 type 调用结果<结果> = { 成功: true; 值: 结果 } | { 成功: false; 错误: string }
@@ -72,6 +74,11 @@ export class MCP测试会话 implements MCP测试工具宿主 {
     private readonly 输出目录: string,
     private readonly 后端: 测试服务,
     private readonly 前端地址: string,
+    private readonly 安卓设备: string | undefined,
+    private readonly 苹果设备: string | undefined,
+    热重载 = false,
+    HMR端口?: number,
+    苹果网络中转?: 苹果网络中转,
   ) {
     this.操作记录 = new 测试操作记录(输出目录)
     this.运行工具 = new 测试运行工具({
@@ -85,6 +92,14 @@ export class MCP测试会话 implements MCP测试工具宿主 {
       附件目录: 输出目录,
       模式: '自动',
       取消信号: this.取消.signal,
+      安卓设备,
+      苹果设备,
+      安卓热重载:
+        热重载 && 安卓设备 !== undefined
+          ? { 前端地址, HMR端口: z.number().int().min(1).max(65535).parse(HMR端口) }
+          : undefined,
+      苹果热重载前端地址: 热重载 ? 前端地址 : undefined,
+      苹果网络中转,
     })
   }
 
@@ -94,6 +109,10 @@ export class MCP测试会话 implements MCP测试工具宿主 {
 
   public 获得测试地址(): { 前端: string; 后端: string } {
     return { 前端: this.前端地址, 后端: this.后端.获得服务地址() }
+  }
+
+  public 获得设备(): { 安卓: string | undefined; 苹果: string | undefined } {
+    return { 安卓: this.安卓设备, 苹果: this.苹果设备 }
   }
 
   public 读取后端日志(): 测试服务日志内容 {
@@ -137,9 +156,9 @@ export class MCP测试会话 implements MCP测试工具宿主 {
     return { reset: true, recordCleared: 清空记录 }
   }
 
-  public async 执行<结果>(
-    调用: (工具: 需求测试工具, 提交: 提交步骤附件) => Promise<结果>,
-  ): Promise<{ 结果: 调用结果<结果>; 附件们: readonly 调用附件[]; 取证错误们: readonly string[] }> {
+  public async 执行(
+    调用: (工具: 需求测试工具, 提交: 提交步骤附件) => Promise<工具输出>,
+  ): Promise<{ 结果: 调用结果<工具输出>; 附件们: readonly 调用附件[]; 取证错误们: readonly string[] }> {
     this.检查开放()
     this.后端.确认已就绪()
     this.调用序号 += 1
@@ -152,9 +171,20 @@ export class MCP测试会话 implements MCP测试工具宿主 {
     let 记录错误 = (错误: unknown): void => {
       取证错误们.push(错误文本(错误))
     }
-    let 结果: 调用结果<结果>
+    let 结果: 调用结果<工具输出>
     try {
-      let 值 = await this.运行工具.执行步骤(提交, 记录错误, () => 调用(this.运行工具.工具, 提交))
+      let 值 = await this.运行工具.执行步骤(提交, 记录错误, async (提交附件) => {
+        let 输出 = await 调用(this.运行工具.工具, 提交附件)
+        提交附件(
+          (输出.图片们 ?? []).map((图片) => ({
+            类型: '图片',
+            内容类型: 图片.内容类型,
+            内容: 图片.图片.toString('base64'),
+            说明: 图片.说明,
+          })),
+        )
+        return 输出
+      })
       结果 = { 成功: true, 值 }
     } catch (错误) {
       结果 = { 成功: false, 错误: 错误文本(错误) }

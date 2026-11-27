@@ -1,70 +1,26 @@
 import OSS from 'ali-oss'
-import { execFileSync } from 'child_process'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
 import { z } from 'zod'
 import { 读取环境文件明文 } from '../setup/env-crypto-core.mjs'
+import { 构建网站, 获取网站文件, 验证网站产物 } from './web-build'
+import { 报告网站发布错误, 校验发布参数, 网站发布错误, 网站项目根目录, 获取平台配置, 读取网站配置 } from './web-config'
 
-let 项目根目录 = path.resolve(import.meta.dirname, '../..')
-let 本地同步目录 = path.join(项目根目录, 'dist/src/web')
-let 部署环境文件路径 = path.join(项目根目录, '.env/.env.deploy')
-
-let 目标目录校验器 = z
-  .string()
-  .min(1)
-  .regex(/^\/?[\w/-]+\/?$/, '云端目标目录只能包含字母、数字、下划线、短横线和斜杠')
-
-let 配置校验器 = z.object({
-  OSS_RELEASE_REGION: z.string().min(1),
-  OSS_RELEASE_ACCESS_KEY_ID: z.string().min(1),
-  OSS_RELEASE_ACCESS_KEY_SECRET: z.string().min(1),
-  OSS_RELEASE_BUCKET: z.string().min(1),
-  OSS_RELEASE_TARGET_DIRECTORY: 目标目录校验器,
-})
-type 配置类型 = z.infer<typeof 配置校验器>
+let 本地同步目录 = ''
+let 配置校验器 = z
+  .object({
+    CONFIG_ENCRYPTION: z.literal('false'),
+    OSS_REGION: z.string().min(1),
+    OSS_ACCESS_KEY_ID: z.string().min(1),
+    OSS_ACCESS_KEY_SECRET: z.string().min(1),
+    OSS_BUCKET: z.string().min(1),
+    OSS_PREFIX: z.string().regex(/^(?:[a-z0-9_-]+\/)*$/u),
+    OSS_ROOT_ALLOWED_DIRECTORIES: z.string().regex(/^(?:[a-z0-9_-]+(?:,[a-z0-9_-]+)*)?$/u),
+  })
+  .strict()
 type 上传任务 = { 本地绝对路径: string; 云端键: string }
-
-function 读取配置(): 配置类型 {
-  return 配置校验器.parse(dotenv.parse(读取环境文件明文(项目根目录, 部署环境文件路径)))
-}
-
-function 标准化目标目录(目录: string): string {
-  let 结果 = 目录.replace(/^\/+|\/+$/g, '')
-  if (结果 === '') throw new Error('为避免误删整个 Bucket，云端目标目录不能是根目录')
-  return `${结果}/`
-}
-
-function 执行pnpm(参数: string[]): void {
-  let 是否Windows = process.platform === 'win32'
-  let 命令 = 是否Windows === true ? 'cmd.exe' : 'pnpm'
-  let 完整参数 = 是否Windows === true ? ['/d', '/s', '/c', 'pnpm', ...参数] : 参数
-  execFileSync(命令, 完整参数, { cwd: 项目根目录, env: process.env, stdio: ['ignore', 'inherit', 'inherit'] })
-}
-
-function 构建纯前端应用(云端目标目录: string): void {
-  let 公共路径 = `/${云端目标目录}`
-  let 环境文件路径 = path.join(项目根目录, '.env/.env.production.pure-frontend')
-  dotenv.populate(process.env, dotenv.parse(读取环境文件明文(项目根目录, 环境文件路径)), { override: true })
-  console.log(`正在构建纯前端模式，公共路径为 ${公共路径}`)
-  执行pnpm(['task', 'clean:web'])
-  执行pnpm([
-    'exec',
-    'parcel',
-    'build',
-    '--no-autoinstall',
-    '--no-cache',
-    '--no-source-maps',
-    '--no-scope-hoist',
-    '--dist-dir',
-    'dist/src/web',
-    '--public-url',
-    公共路径,
-    'src/web/page/**/*.html',
-  ])
-  if (fs.existsSync(本地同步目录) === false) throw new Error(`构建产物不存在: ${本地同步目录}`)
-}
 
 function 获取MIME类型(文件路径: string): string {
   let 映射: Record<string, string> = {
@@ -85,16 +41,6 @@ function 获取MIME类型(文件路径: string): string {
     '.woff2': 'font/woff2',
   }
   return 映射[path.extname(文件路径).toLowerCase()] ?? 'application/octet-stream'
-}
-
-function 递归获取文件(目录: string): string[] {
-  let 结果: string[] = []
-  for (let 项 of fs.readdirSync(目录, { withFileTypes: true })) {
-    let 绝对路径 = path.join(目录, 项.name)
-    if (项.isDirectory() === true) 结果.push(...递归获取文件(绝对路径))
-    else if (项.isFile() === true) 结果.push(绝对路径)
-  }
-  return 结果
 }
 
 function 计算MD5(文件路径: string): string {
@@ -147,12 +93,11 @@ async function 执行上传(客户端: OSS, 任务列表: 上传任务[]): Promi
       let 任务 = 任务列表[当前索引]
       当前索引 = 当前索引 + 1
       if (任务 === undefined) continue
-      let 扩展名 = path.extname(任务.本地绝对路径).toLowerCase()
-      let 是否需要每次验证 = 扩展名 === '.html' || path.basename(任务.本地绝对路径) === 'sw.js'
+      let 是否包含内容哈希 = /\.[a-f0-9]{8}\./u.test(path.basename(任务.本地绝对路径))
       console.log(`[上传] ${任务.云端键}`)
       await 客户端.put(任务.云端键, 任务.本地绝对路径, {
         headers: {
-          'cache-control': 是否需要每次验证 === true ? 'no-cache' : 'public, max-age=31536000, immutable',
+          'cache-control': 是否包含内容哈希 === true ? 'public, max-age=31536000, immutable' : 'no-cache',
           'content-type': 获取MIME类型(任务.本地绝对路径),
         },
       })
@@ -172,40 +117,72 @@ async function 执行删除(客户端: OSS, 删除列表: string[]): Promise<voi
 }
 
 async function 执行同步(): Promise<void> {
-  let 仅构建参数 = process.argv.find((参数) => 参数.startsWith('--build-only='))
-  if (仅构建参数 !== undefined) {
-    let 云端目标目录 = 标准化目标目录(目标目录校验器.parse(仅构建参数.slice('--build-only='.length)))
-    构建纯前端应用(云端目标目录)
-    console.log('纯前端 OSS 子目录构建完成。')
+  let 目标 = 获取平台配置('oss', 读取网站配置())
+  本地同步目录 = 目标.产物目录
+  let 参数 = 校验发布参数()
+  if (目标.启用 === false) throw new 网站发布错误('OSS 网站发布未启用')
+  if (参数.仅构建 === true) {
+    await 构建网站(目标.公共路径, 本地同步目录)
     return
   }
-  if (process.argv.includes('--confirmed') === false) {
-    throw new Error('OSS 同步必须通过 npm run task -- public:oss:aliyun 启动并在准备阶段确认')
+  let 配置 = 配置校验器.parse(
+    dotenv.parse(读取环境文件明文(网站项目根目录, path.join(网站项目根目录, '.env/.env.oss-aliyun'))),
+  )
+  let 云端目标目录 = 配置.OSS_PREFIX
+  if (`/${云端目标目录}` !== 目标.公共路径) throw new 网站发布错误('OSS_PREFIX 与 OSS_PUBLIC_PATH 必须一致')
+  if (云端目标目录 === '' && 参数.删除 === true) throw new 网站发布错误('Bucket 根站点禁止批量删除')
+  if (参数.仅上传 === false) await 构建网站(目标.公共路径, 本地同步目录)
+  验证网站产物(目标.公共路径, 本地同步目录)
+  let 本地文件 = 获取网站文件(本地同步目录)
+  let 允许目录 = new Set(配置.OSS_ROOT_ALLOWED_DIRECTORIES.split(',').filter((值): boolean => 值 !== ''))
+  if (云端目标目录 === '') {
+    for (let 文件 of 本地文件) {
+      let 相对路径 = path.relative(本地同步目录, 文件).replaceAll('\\', '/')
+      let 一级目录 = 相对路径.split('/')[0]
+      if (相对路径.includes('/') === true && (一级目录 === undefined || 允许目录.has(一级目录) === false))
+        throw new 网站发布错误('根站点产物包含未授权目录，请检查 OSS_ROOT_ALLOWED_DIRECTORIES')
+    }
   }
-  let 配置 = 读取配置()
-  let 云端目标目录 = 标准化目标目录(配置.OSS_RELEASE_TARGET_DIRECTORY)
-  构建纯前端应用(云端目标目录)
   let 客户端 = new OSS({
-    region: 配置.OSS_RELEASE_REGION,
-    accessKeyId: 配置.OSS_RELEASE_ACCESS_KEY_ID,
-    accessKeySecret: 配置.OSS_RELEASE_ACCESS_KEY_SECRET,
-    bucket: 配置.OSS_RELEASE_BUCKET,
+    region: 配置.OSS_REGION,
+    accessKeyId: 配置.OSS_ACCESS_KEY_ID,
+    accessKeySecret: 配置.OSS_ACCESS_KEY_SECRET,
+    bucket: 配置.OSS_BUCKET,
   })
-  let 本地文件 = 递归获取文件(本地同步目录)
-  let 云端对象 = await 获取云端对象(客户端, 云端目标目录)
-  let 变更 = 计算变更(本地文件, 云端对象, 云端目标目录)
-  console.log(`本地 ${本地文件.length} 个文件，待上传 ${变更.上传.length} 个，待删除 ${变更.删除.length} 个。`)
-  if (变更.上传.length === 0 && 变更.删除.length === 0) {
-    console.log('云端已经是最新状态。')
+  let 云端对象: OSS.ObjectMeta[] = []
+  let 变更: { 上传: 上传任务[]; 删除: string[] }
+  if (云端目标目录 === '') {
+    let 上传: 上传任务[] = []
+    for (let 文件 of 本地文件) {
+      let 键 = path.relative(本地同步目录, 文件).replaceAll('\\', '/')
+      try {
+        let 结果 = await 客户端.head(键)
+        let etag = z.object({ etag: z.string() }).parse(结果.res.headers).etag
+        if (etag.replaceAll('"', '').toLowerCase() !== 计算MD5(文件)) 上传.push({ 本地绝对路径: 文件, 云端键: 键 })
+      } catch (错误: unknown) {
+        let 不存在 = z.object({ status: z.literal(404) }).safeParse(错误)
+        if (不存在.success === false) throw new 网站发布错误('读取 OSS 根站点文件失败，请检查权限和网络')
+        上传.push({ 本地绝对路径: 文件, 云端键: 键 })
+      }
+    }
+    变更 = { 上传, 删除: [] }
+  } else {
+    云端对象 = await 获取云端对象(客户端, 云端目标目录)
+    变更 = 计算变更(本地文件, 云端对象, 云端目标目录)
+  }
+  console.log(`待上传 ${变更.上传.length} 个文件，可清理 ${变更.删除.length} 个旧文件。`)
+  for (let 项 of 变更.上传) console.log(`[待上传] ${项.云端键}`)
+  for (let 键 of 变更.删除) console.log(`[旧文件] ${键}`)
+  if (参数.确认 === false) {
+    console.log('确认后添加 --yes 执行上传。')
     return
   }
-  for (let 云端键 of 变更.删除) console.log(`[待删除] ${云端键}`)
-  await 执行上传(客户端, 变更.上传)
-  await 执行删除(客户端, 变更.删除)
+  let 页面任务 = 变更.上传.filter((项): boolean => path.extname(项.本地绝对路径).toLowerCase() === '.html')
+  let 资源任务 = 变更.上传.filter((项): boolean => path.extname(项.本地绝对路径).toLowerCase() !== '.html')
+  await 执行上传(客户端, 资源任务)
+  await 执行上传(客户端, 页面任务)
+  if (参数.删除 === true) await 执行删除(客户端, 变更.删除)
   console.log('阿里云 OSS 同步完成。')
 }
 
-void 执行同步().catch((错误: unknown): void => {
-  console.error('阿里云 OSS 同步失败:', 错误)
-  process.exitCode = 1
-})
+void 执行同步().catch(报告网站发布错误)

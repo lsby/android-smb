@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { link, lstat, readdir, rm, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { copyFile, link, lstat, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { format, resolveConfig } from 'prettier'
 
-import { 生成需求测试代码 } from './export-operation-record'
+import type { 模板资源 } from './enhanced-click-code'
+import { 列出模板资源, 生成需求测试代码 } from './export-operation-record'
+import { 拆分需求测试源码 } from './export-split'
 import { 读取需求描述文件, 需求描述文件名, 需求流程文件名格式, 需求目录路径格式 } from './requirement-file'
 import { 需求测试运行器 } from './run-requirement'
 
@@ -13,6 +16,32 @@ type 导出参数 = Omit<Parameters<typeof 生成需求测试代码>[0], '需求
   覆盖验收点键们?: readonly string[] | undefined
 }
 let 导出队列 = Promise.resolve()
+
+/**
+ * 把录制时为坐标点击裁的图片模板复制到需求目录的 assets/，返回新建的文件（出错时由调用方清理）。
+ * 同名文件已存在且内容一样就沿用，内容不同不覆盖，报错让人处理。
+ */
+export async function 复制模板资源(需求目录: string, 模板们: readonly 模板资源[]): Promise<string[]> {
+  let 已复制: string[] = []
+  if (模板们.length > 0) await mkdir(path.join(需求目录, 'assets'), { recursive: true })
+  try {
+    for (let 模板 of 模板们) {
+      let 目标 = path.join(需求目录, 模板.相对路径)
+      try {
+        await copyFile(模板.来源路径, 目标, constants.COPYFILE_EXCL)
+        已复制.push(目标)
+      } catch (错误) {
+        if (错误 instanceof Error === false || 'code' in 错误 === false || 错误.code !== 'EEXIST') throw 错误
+        if ((await readFile(目标)).equals(await readFile(模板.来源路径)) === false)
+          throw new Error(`需求目录已有不同内容的图片模板 ${模板.相对路径}，请先处理再导出`, { cause: 错误 })
+      }
+    }
+  } catch (错误) {
+    for (let 资源 of 已复制) await rm(资源, { force: true })
+    throw 错误
+  }
+  return 已复制
+}
 
 async function 获得前端目录首页(项目根目录: string): Promise<ReadonlyMap<string, string>> {
   let 页面目录 = path.join(项目根目录, 'src', 'web', 'page')
@@ -64,12 +93,36 @@ export function 写出需求测试(项目根目录: string, 参数: 导出参数
     if (已有需求们.some((需求) => 需求 !== 业务需求 && 需求.获得名称() === 需求名称))
       throw new Error(`需求测试已有不同定义的同名需求「${需求名称}」`)
     let 格式 = await resolveConfig(文件)
-    let 内容 = await format(源码, { ...格式, filepath: 文件 })
+    let 辅助目录 = path.join(项目根目录, 'test', 'requirement-support', 参数.需求目录名, 参数.文件名.slice(0, -3))
+    let 拆分 = 拆分需求测试源码(await format(源码, { ...格式, filepath: 文件 }), 文件, 辅助目录)
+    let 内容 = await format(拆分.入口, { ...格式, filepath: 文件 })
+    let 辅助们 = await Promise.all(
+      拆分.辅助们.map(
+        async ({ 路径, 内容 }): Promise<{ 路径: string; 内容: string }> => ({
+          路径,
+          内容: await format(内容, { ...格式, filepath: 路径 }),
+        }),
+      ),
+    )
+    for (let 候选 of [{ 路径: 文件, 内容 }, ...辅助们])
+      if (候选.内容.split('\n').length > 500)
+        throw new Error(`导出文件仍超过500行：${候选.路径}。请拆分过大的初始化数据或步骤分组后再导出`)
     let 临时文件 = `${文件}.${randomUUID()}.tmp`
+    // 坐标点击没有元素定位时，录制时裁的图片模板复制到需求目录的 assets/，流程文件按相对路径引用
+    let 已复制资源们: string[] = []
     try {
+      for (let 辅助 of 辅助们) {
+        await mkdir(path.dirname(辅助.路径), { recursive: true })
+        await writeFile(辅助.路径, 辅助.内容, { encoding: 'utf8', flag: 'wx' })
+        已复制资源们.push(辅助.路径)
+      }
       await writeFile(临时文件, 内容, { encoding: 'utf8', flag: 'wx' })
+      已复制资源们.push(...(await 复制模板资源(需求目录, 列出模板资源(参数.步骤组, 参数.文件名))))
       // 原子地发布完整文件，同名文件存在时由文件系统拒绝覆盖。
       await link(临时文件, 文件)
+    } catch (错误) {
+      for (let 资源 of 已复制资源们) await rm(资源, { force: true })
+      throw 错误
     } finally {
       await rm(临时文件, { force: true })
     }
