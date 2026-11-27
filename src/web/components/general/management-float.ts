@@ -29,7 +29,7 @@ export class 悬浮管理组件 extends 组件基类<发出事件类型, 监听�
         zIndex: '1000',
       },
       点击处理函数: async (): Promise<void> => {
-        window.open('/admin.html', '_blank')
+        window.open('./admin.html', '_blank')
       },
     })
 

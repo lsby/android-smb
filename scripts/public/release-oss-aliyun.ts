@@ -144,6 +144,8 @@ async function 执行同步(): Promise<void> {
     }
   }
   let 客户端 = new OSS({
+    secure: true,
+    authorizationV4: true,
     region: 配置.OSS_REGION,
     accessKeyId: 配置.OSS_ACCESS_KEY_ID,
     accessKeySecret: 配置.OSS_ACCESS_KEY_SECRET,

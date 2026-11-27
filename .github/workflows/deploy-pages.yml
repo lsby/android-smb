@@ -1,69 +1,110 @@
-name: 校验并发布 GitHub Pages
+name: CI and Publish Websites
 
 on:
   push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+    branches: [main, master]
+    tags: ['v*']
   pull_request:
-    branches:
-      - master
+    branches: [main, master]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Website publishing platform
+        type: choice
+        options: [all, oss, github-pages]
+        default: all
 
 permissions:
-  contents: write
-
-concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@v4
-
-      - name: 安装 pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 9.5.0
-
-      - name: 配置 Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check:all
 
-      - name: 写入项目配置密钥
-        env:
-          PROJECT_CONFIG_KEY_FILE: ${{ secrets.PROJECT_CONFIG_KEY_FILE }}
-        run: |
-          if [[ -z "$PROJECT_CONFIG_KEY_FILE" ]]; then
-            echo "缺少 GitHub Secret: PROJECT_CONFIG_KEY_FILE" >&2
-            exit 1
-          fi
-          printf '%s\n' "$PROJECT_CONFIG_KEY_FILE" > .project-config.key
-
-      - name: 安装依赖
-        run: pnpm install --frozen-lockfile
-
-      - name: 检查格式
-        run: pnpm exec prettier --check .
-
-      - name: 检查代码
-        run: pnpm exec eslint .
-
-      - name: 检查类型
-        run: pnpm task check:type
-
-      - name: 构建 GitHub Pages
-        run: pnpm task public:oss:aliyun -- --build-only=${{ github.event.repository.name }}
-
-      - name: 发布到 gh-pages 分支
-        if: github.event_name != 'pull_request'
-        uses: JamesIves/github-pages-deploy-action@v4
+  build:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    outputs:
+      oss: ${{ steps.config.outputs.oss }}
+      pages: ${{ steps.config.outputs.pages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-web-publish
         with:
-          folder: dist/src/web
-          branch: gh-pages
+          config-key: ${{ secrets.PROJECT_CONFIG_KEY_FILE }}
+      - name: Validate release and select platforms
+        id: config
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+        run: pnpm exec tsx scripts/public/web-ci.ts
+      - name: Build each distinct public path
+        env:
+          INPUT_TARGET: ${{ inputs.target }}
+        run: pnpm run task -- build:web:publish
+      - name: Save OSS website
+        if: steps.config.outputs.oss == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-oss
+          path: dist/web-publish/oss
+          if-no-files-found: error
+      - name: Save GitHub Pages website
+        if: steps.config.outputs.pages == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web-publish/github-pages
+      - name: Remove project configuration key
+        if: always()
+        run: rm -f -- .project-config.key
+
+  publish-oss:
+    needs: build
+    if: needs.build.outputs.oss == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-oss
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-web-publish
+        with:
+          config-key: ${{ secrets.PROJECT_CONFIG_KEY_FILE }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: website-oss
+          path: dist/web-publish/oss
+      - name: Publish existing OSS website
+        run: pnpm run task -- public:web:oss -- --upload-only --yes
+      - name: Remove project configuration key
+        if: always()
+        run: rm -f -- .project-config.key
+
+  publish-pages:
+    needs: build
+    if: needs.build.outputs.pages == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: publish-pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy existing GitHub Pages website
+        id: deployment
+        uses: actions/deploy-pages@v4
